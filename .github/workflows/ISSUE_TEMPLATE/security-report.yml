@@ -1,0 +1,34 @@
+
+name: Security Report
+description: Report a potential security vulnerability.
+title: "[SECURITY]: Private report required"
+labels:
+  - security
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Security Vulnerability Reporting
+
+        Do not disclose vulnerability details, exploit steps,
+        credentials, or sensitive information in a public issue.
+
+        Please use GitHub's private vulnerability reporting feature
+        or follow the instructions in SECURITY.md.
+
+  - type: checkboxes
+    id: acknowledgment
+    attributes:
+      label: Security Reporting Acknowledgment
+      options:
+        - label: I understand that sensitive vulnerability details must not be shared publicly.
+          required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: General Summary (Non-sensitive)
+      description: Provide a brief, non-exploitable summary only.
+      placeholder: Briefly describe the affected component.
+    validations:
+      required: true
