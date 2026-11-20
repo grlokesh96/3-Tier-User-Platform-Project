@@ -565,3 +565,29 @@ jobs:
 #      - name: Verify rollout
 #        run: |
 #          kubectl rollout status deployment/nodejs-app -n "${K8S_NAMESPACE}" --timeout=180s
+
+  # Added: Slack Notification (calls .github/workflows/slack-notification.yml)
+  slack-notify:
+    name: Slack Notification
+    if: ${{ always() }}
+    needs:
+      - gitleaks-scan
+      - checkov-terraform
+      - checkov-k8s
+      - checkov-dockerfile
+      - client-trivy-fs
+      - server-trivy-fs
+      - client-lint
+      - server-lint
+      - client-test
+      - server-test
+      - client-build
+      - docker
+    uses: ./.github/workflows/slack-notification.yml
+    with:
+      environment: qa
+      build_result: ${{ needs.client-build.result }}
+      test_result: ${{ (needs.client-test.result == 'failure' || needs.server-test.result == 'failure') && 'failure' || (needs.client-test.result == 'cancelled' || needs.server-test.result == 'cancelled') && 'cancelled' || needs.client-test.result }}
+      security_result: ${{ (needs.gitleaks-scan.result == 'failure' || needs.checkov-terraform.result == 'failure' || needs.checkov-k8s.result == 'failure' || needs.checkov-dockerfile.result == 'failure' || needs.client-trivy-fs.result == 'failure' || needs.server-trivy-fs.result == 'failure') && 'failure' || needs.gitleaks-scan.result }}
+      container_result: ${{ needs.docker.result }}
+    secrets: inherit
