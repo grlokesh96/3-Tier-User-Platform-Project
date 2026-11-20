@@ -12,7 +12,13 @@ on:
 permissions:
   contents: write
   id-token: write
-  
+
+# FIX: the image namespace now comes from your own Docker Hub username
+# (repo variable DOCKERHUB_USERNAME) instead of the hard-coded "devopsshack",
+# so the account you log in with always owns the repository you push to.
+env:
+  IMAGE_NAME: ${{ vars.DOCKERHUB_USERNAME }}/nodejs-app
+
 jobs:
   gitleaks-scan:
     name: Gitleaks Scan
@@ -402,6 +408,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # FIX: checkout was missing, so the build had no Dockerfile/context
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # FIX: fail early with a clear message if the Docker Hub config is missing
+      - name: Validate Docker Hub configuration
+        env:
+          DH_USER: ${{ vars.DOCKERHUB_USERNAME }}
+          DH_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "$DH_USER" ]; then
+            echo "::error::Repository variable DOCKERHUB_USERNAME is not set"
+            exit 1
+          fi
+          if [ -z "$DH_TOKEN" ]; then
+            echo "::error::Repository secret DOCKERHUB_TOKEN is not set"
+            exit 1
+          fi
+          echo "Pushing to Docker Hub repository: ${IMAGE_NAME}"
+
       - name: Login to Docker Hub
         uses: docker/login-action@v4
         with:
@@ -417,11 +443,14 @@ jobs:
       - name: Build
         uses: docker/build-push-action@v7
         with:
+          context: .
           load: true
           push: false
           tags: |
-            devopsshack/nodejs-app:${{ github.sha }}
-            devopsshack/nodejs-app:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Install Trivy
         uses: aquasecurity/setup-trivy@v0.2.6
@@ -436,7 +465,7 @@ jobs:
 
       - name: Run Trivy image scan (JSON)
         run: |
-          trivy image devopsshack/nodejs-app:${{ github.sha }} \
+          trivy image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
             --format json \
             --output image-trivy-report.json \
             --severity HIGH,CRITICAL \
@@ -445,7 +474,7 @@ jobs:
 
       - name: Run Trivy image scan (TABLE)
         run: |
-          trivy image devopsshack/nodejs-app:${{ github.sha }} \
+          trivy image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
             --format table \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
@@ -476,7 +505,7 @@ jobs:
       - name: Generate image SBOM
         uses: anchore/sbom-action@v0
         with:
-          image: devopsshack/nodejs-app:${{ github.sha }}
+          image: ${{ env.IMAGE_NAME }}:${{ github.sha }}
           format: spdx-json
           output-file: image-sbom.spdx.json
           upload-artifact: true  
@@ -484,10 +513,12 @@ jobs:
       - name: Push
         uses: docker/build-push-action@v7
         with:
+          context: .
           push: true
           tags: |
-            devopsshack/nodejs-app:${{ github.sha }}
-            devopsshack/nodejs-app:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
 
 
   # Disabled: Update QA Manifest
@@ -504,7 +535,7 @@ jobs:
 #          ref: qa
 #      - name: Update image tag in manifest
 #        run: |
-#          sed -i "s|image: devopsshack/nodejs-app:.*|image: devopsshack/nodejs-app:${GITHUB_SHA}|g" k8-manifests/qa/app-deployment.yaml
+#          sed -i "s|image: .*/nodejs-app:.*|image: ${IMAGE_NAME}:${GITHUB_SHA}|g" k8-manifests/qa/app-deployment.yaml
 #      - name: Show updated manifest (debug)
 #        run: |
 #          cat k8-manifests/qa/app-deployment.yaml
@@ -566,7 +597,7 @@ jobs:
 #        run: |
 #          kubectl rollout status deployment/nodejs-app -n "${K8S_NAMESPACE}" --timeout=180s
 
-  # Added: Slack Notification (calls .github/workflows/slack-notification.yml)
+  # Slack Notification (calls .github/workflows/slack-notification.yml)
   slack-notify:
     name: Slack Notification
     if: ${{ always() }}
