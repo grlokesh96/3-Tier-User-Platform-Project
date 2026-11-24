@@ -8,6 +8,12 @@ on:
     paths:
       - k8-manifests/prod/app-deployment.yaml
       - .github/workflows/prod-cd.yaml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - k8-manifests/prod/app-deployment.yaml
+      - .github/workflows/prod-cd.yaml
 
 permissions:
   contents: write

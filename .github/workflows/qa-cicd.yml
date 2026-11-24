@@ -9,6 +9,14 @@ on:
       - server/**
       - .github/workflows/qa-cicd.yml
       - Dockerfile
+  pull_request:
+    branches:
+      - main
+    paths:
+      - client/**
+      - server/**
+      - .github/workflows/qa-cicd.yml
+      - Dockerfile
 permissions:
   contents: write
   id-token: write
