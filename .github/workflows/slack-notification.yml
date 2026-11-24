@@ -1,0 +1,56 @@
+name: Slack Notification (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      build_result:
+        required: true
+        type: string
+      test_result:
+        required: true
+        type: string
+      security_result:
+        required: true
+        type: string
+      container_result:
+        required: true
+        type: string
+    secrets:
+      SLACK_WEBHOOK_URL:
+        required: false
+
+jobs:
+  notify:
+    name: Send Slack Notification
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Send notification to Slack
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Pipeline *${{ github.workflow }}* finished on *${{ github.ref_name }}* (${{ inputs.environment }})",
+              "attachments": [
+                {
+                  "color": "${{ inputs.build_result == 'success' && inputs.test_result == 'success' && inputs.security_result == 'success' && inputs.container_result == 'success' && '#36a64f' || '#ff0000' }}",
+                  "fields": [
+                    { "title": "Build", "value": "${{ inputs.build_result }}", "short": true },
+                    { "title": "Tests", "value": "${{ inputs.test_result }}", "short": true },
+                    { "title": "Security", "value": "${{ inputs.security_result }}", "short": true },
+                    { "title": "Container", "value": "${{ inputs.container_result }}", "short": true }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+      - name: Log notification status
+        run: |
+          echo "Slack notification step completed (webhook may be missing)"
